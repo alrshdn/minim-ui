@@ -1,4 +1,3 @@
-
 #include <stdio.h>
 #include <stdlib.h>
 // #include <string.h>
@@ -6,7 +5,6 @@
 #include <X11/Xft/Xft.h>
 
 #include "minim-ui.h"
-
 
 Mui *
 mui_init(const char *displayname)
@@ -21,12 +19,11 @@ mui_init(const char *displayname)
 	return mui;	
 }
 
-
 void
 mui_setup(Mui *mui,
 		const int xposition, const int yposition,
 		const unsigned int windowwidth, const unsigned int windowheight,
-		const long unsigned int backgroundcolor, const long unsigned int foregroundcolor,
+		const unsigned long backgroundcolor, const unsigned long foregroundcolor,
 		const char *appname)
 {
 	XSetWindowAttributes wa;
@@ -42,7 +39,7 @@ mui_setup(Mui *mui,
 	wa.background_pixel = backgroundcolor;
 	wa.event_mask = KeyPressMask|KeyReleaseMask
 		|ButtonPressMask
-		|ExposureMask;
+		|ExposureMask|StructureNotifyMask;
 	wvm = CWBackPixel|CWEventMask;
 	mui->main_win = XCreateWindow(mui->dpy,
 			DefaultRootWindow(mui->dpy),
@@ -84,7 +81,57 @@ mui_show(Mui *mui)
 }
 
 void
-mui_rectangle(Mui *mui,
+mui_setwindow_newsize(Mui *mui, const int newwidth, const int newheight)
+{
+	mui->w = newwidth;
+	mui->h = newheight;
+	XResizeWindow(mui->dpy, mui->main_win, mui->w, mui->h);
+	XSync(mui->dpy, False);
+}
+
+void
+mui_setwindow_minmaxsize(Mui *mui, const int minwidth, const int minheight, const int maxwidth, const int maxheight)
+{
+	XSizeHints *h = XAllocSizeHints();
+	h->min_width = minwidth;
+	h->min_height = minheight;
+	h->max_width = maxwidth;
+	h->max_height = maxheight;
+	h->flags = PMinSize|PMaxSize;
+
+	XSetWMSizeHints(mui->dpy, mui->main_win, h, wmatom[WMNormalHints]);
+}
+
+void
+mui_setwindow_backgroundcolor(Mui *mui, const unsigned long color)
+{
+	XSetWindowBackground(mui->dpy, mui->main_win, color);
+}
+
+void mui_getwindow_position(Mui *mui, int *xposition, int *yposition)
+{
+	XWindowAttributes wa;
+	XGetWindowAttributes(mui->dpy, mui->main_win, &wa);
+
+	*xposition = wa.x;
+	*yposition = wa.y;
+}
+
+void mui_getwindow_size(Mui *mui, int *width, int *height)
+{
+	/*
+	XWindowAttributes wa;
+	XGetWindowAttributes(mui->dpy, mui->main_win, &wa);
+
+	*width = wa.width;
+	*height = wa.height;
+	*/
+	*width = mui->w;
+	*height = mui->h;
+}
+
+void
+mui_draw_rectangle(Mui *mui,
 		const int xposition, const int yposition,
 		const unsigned int width, const unsigned int height,
 		const int isfilled, const int isinverted)
@@ -101,17 +148,18 @@ mui_rectangle(Mui *mui,
 }
 
 void
-mui_createclr(Mui *mui,
+mui_create_clr(Mui *mui,
 		const char *clrname,
 		Clr *clr)
 {
-	XftColorAllocName(mui->dpy, DefaultVisual(mui->dpy, mui->scr),
+	XftColorAllocName(mui->dpy,
+			DefaultVisual(mui->dpy, mui->scr),
 			DefaultColormap(mui->dpy, mui->scr),
 			clrname, clr);
 }
 
 Clr *
-mui_createclrmode(Mui *mui,
+mui_create_clrmode(Mui *mui,
 		char *clrnames[],
 		size_t clrcount)
 {
@@ -119,9 +167,23 @@ mui_createclrmode(Mui *mui,
 	Clr *clr;
 
 	for (i = 0; i < clrcount; i++)
-		mui_createclr(mui, clrnames[i], clr);
+		mui_create_clr(mui, clrnames[i], clr);
 
 	return clr;
+}
+
+void
+mui_create_clrmodes()
+{
+	colormodes = ecalloc(LENGTH(colors), sizeof(Clr *));
+	for (i = 0; i < LENGTH(colors); i++)
+		colormodes[i] = mui_create_colormode(mui, colors[i], ClrIdCount);
+}
+
+void
+mui_set_clrmode(Mui *mui, Clr *clrmode)
+{
+	mui->clrmode = clrmode;
 }
 
 void
@@ -136,7 +198,7 @@ mui_cleanup(Mui *mui)
 
 	XFreeGC(mui->dpy, mui->gc);
 	
-	free(mui->clrmodes);
+	free(mui->clrmode);
 }
 
 void
